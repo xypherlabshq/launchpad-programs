@@ -10,15 +10,13 @@ const {
     mintToAccount,
 } = require("./utils");
 
-const { PublicKey } = require("@solana/web3.js");
-
 describe("ico-platform", () => {
     const provider = anchor.Provider.local();
 
     // Configure the client to use the local cluster.
     anchor.setProvider(provider);
 
-    const program = anchor.workspace.IdoPool;
+    const program = anchor.workspace.IcoPlatform;
 
     const nativeIcoAmount = new anchor.BN(5000000);
 
@@ -49,5 +47,64 @@ describe("ico-platform", () => {
         );
         creator_native_account = await getTokenAccount(provider, creatorNative);
         assert.ok(creator_native_account.amount.eq(nativeIcoAmount));
+    });
+
+    let poolSigner = null;
+    let redeemableMint = null;
+    let poolNative = null;
+    let poolUsdc = null;
+    let poolAccount = null;
+
+    let startIcoTs = null;
+    let endIcoTs = null;
+
+    it("Initializes the ICO Pool", async () => {
+        const [_poolSigner, nonce] =
+            await anchor.web3.PublicKey.findProgramAddress(
+                [nativeMint.toBuffer()],
+                program.programId
+            );
+        poolSigner = _poolSigner;
+        // console.log(poolSigner.toString());
+
+        redeemableMint = await createMint(provider, poolSigner);
+        poolNative = await createTokenAccount(provider, nativeMint, poolSigner);
+        poolUsdc = await createTokenAccount(provider, usdcMint, poolSigner);
+
+        poolAccount = anchor.web3.Keypair.generate();
+        const nowBn = new anchor.BN(Date.now() / 1000);
+        startIcoTs = nowBn.add(new anchor.BN(5));
+        endIcoTs = nowBn.add(new anchor.BN(15));
+        withDrawTs = nowBn.add(new anchor.BN(19));
+
+        await program.rpc.initializePool(
+            nativeIcoAmount,
+            nonce,
+            startIcoTs,
+            endIcoTs,
+            withDrawTs,
+            {
+                accounts: {
+                    poolAccount: poolAccount.publicKey,
+                    poolSigner,
+                    distributionAuthority: provider.wallet.publicKey,
+                    payer: provider.wallet.publicKey,
+                    creatorNative,
+                    redeemableMint,
+                    usdcMint,
+                    nativeMint,
+                    poolNative,
+                    poolUsdc,
+                    tokenProgram: TOKEN_PROGRAM_ID,
+                    rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+                    clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+                    systemProgram: anchor.web3.SystemProgram.programId,
+                },
+                signers: [poolAccount],
+            }
+        );
+
+        creator_native_account = await getTokenAccount(provider, creatorNative);
+        assert.ok(creator_native_account.amount.eq(new anchor.BN(0)));
     });
 });
