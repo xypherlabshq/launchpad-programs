@@ -1,5 +1,5 @@
 [programs.localnet]
-ico_platform = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+ico_platform = "4UJV9VxwoewYhw1qZKtPoVAdhd4tW8AaaDzpawuN9YuA"
 
 [registry]
 url = "https://anchor.projectserum.com"
@@ -9,4 +9,4 @@ cluster = "localnet"
 wallet = "/home/swarnab/.config/solana/id.json"
 
 [scripts]
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+test = "mocha -t 20000 tests/ico-platform.js"

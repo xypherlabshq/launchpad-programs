@@ -3,7 +3,7 @@ use anchor_lang::solana_program::program_option::COption;
 use anchor_spl::token::{self, Burn, Mint, MintTo, TokenAccount, Transfer};
 // use std::str::FromStr;
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+declare_id!("4UJV9VxwoewYhw1qZKtPoVAdhd4tW8AaaDzpawuN9YuA");
 
 #[program]
 pub mod ico_platform {
