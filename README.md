@@ -1,3 +1,3 @@
-# ICO Platform
+# ICO Platform Programs
 
-## Built for the Solana Ecosystem
+Solana Programs for an ICO Platform. Works with Anchor v0.23.0
