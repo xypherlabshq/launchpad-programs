@@ -55,18 +55,21 @@ pub struct InitializePool<'info> {
     pub pool_account: Box<Account<'info, PoolAccount>>,
     #[account(mut)]
     pub pool_signer: AccountInfo<'info>,
-    #[account(constraint = redeemable_mint.mint_authority == COption::Some(*pool_signer.key), constraint = redeemable_mint.supply == 0)]
+    #[account(
+        constraint = redeemable_mint.mint_authority == COption::Some(*pool_signer.key), 
+        constraint = redeemable_mint.supply == 0
+    )]
     pub redeemable_mint: Box<Account<'info, Mint>>,
     #[account(constraint = usdc_mint.decimals == redeemable_mint.decimals)]
     pub usdc_mint: Box<Account<'info, Mint>>,
     #[account(constraint = pool_native.mint == *native_mint.to_account_info().key)]
-    pub native_mint: Box<Account<'info, TokenAccount>>,
-    #[account(constraint = pool_native.owner == *pool_signer.key)]
-    pool_native: Box<Account<'info, TokenAccount>>,
+    pub native_mint: Box<Account<'info, Mint>>,
+    #[account(mut, constraint = pool_native.owner == *pool_signer.key)]
+    pub pool_native: Box<Account<'info, TokenAccount>>,
     #[account(constraint = pool_usdc.owner == *pool_signer.key)]
     pub pool_usdc: Box<Account<'info, TokenAccount>>,
     #[account(mut)]
-    pub distribution_authority: Signer<'info>,
+    pub distribution_authority: AccountInfo<'info>,
     #[account(mut)]
     pub payer: Signer<'info>,
     #[account(mut)]
