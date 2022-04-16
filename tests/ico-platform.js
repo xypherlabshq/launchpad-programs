@@ -107,9 +107,61 @@ describe("ico-platform", () => {
         assert.ok(creator_native_account.amount.eq(new anchor.BN(0)));
     });
 
-    it("Modify ico time", async () => {
-        console.log("PoolAccount", poolAccount.publicKey);
+    let userUsdc = null;
+    let userRedeemable = null;
 
+    const firstDeposit = new anchor.BN(10);
+
+    it("Exchanges user USDC for redeemable tokens", async () => {
+        if (Date.now() < startIcoTs.toNumber() * 1000) {
+            await sleep(startIcoTs.toNumber() * 1000 - Date.now() + 1000);
+        }
+
+        userUsdc = await createTokenAccount(
+            provider,
+            usdcMint,
+            provider.wallet.publicKey
+        );
+        await mintToAccount(
+            provider,
+            usdcMint,
+            userUsdc,
+            firstDeposit,
+            provider.wallet.publicKey
+        );
+        userRedeemable = await createTokenAccount(
+            provider,
+            redeemableMint,
+            provider.wallet.publicKey
+        );
+
+        try {
+            const tx = await program.rpc.exchangeUsdcForRedeemable(
+                firstDeposit,
+                {
+                    accounts: {
+                        poolAccount: poolAccount.publicKey,
+                        poolSigner,
+                        redeemableMint,
+                        poolUsdc,
+                        userAuthority: provider.wallet.publicKey,
+                        userUsdc,
+                        userRedeemable,
+                        tokenProgram: TOKEN_PROGRAM_ID,
+                        clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+                    },
+                }
+            );
+        } catch (err) {
+            console.log("This is the error message", err.toString());
+        }
+        poolUsdcAccount = await getTokenAccount(provider, poolUsdc);
+        assert.ok(poolUsdcAccount.amount.eq(firstDeposit));
+        userRedeemableAccount = await getTokenAccount(provider, userRedeemable);
+        assert.ok(userRedeemableAccount.amount.eq(firstDeposit));
+    });
+
+    it("Modify ico time", async () => {
         await program.rpc.modifyIcoTime(
             new anchor.BN(1),
             new anchor.BN(2),
