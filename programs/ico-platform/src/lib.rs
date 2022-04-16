@@ -47,7 +47,28 @@ pub mod ico_platform {
 
         Ok(())
     }
+    
+    pub fn modify_ico_time(
+        ctx: Context<ModifyIcoTime>,
+        start_ico_ts: i64,
+        end_ico_ts: i64,
+        withdraw_native_ts: i64,
+    ) -> Result<()> {
+        if !(start_ico_ts < end_ico_ts
+            && end_ico_ts < withdraw_native_ts)
+        {
+            return Err(ErrorCode::SeqTimes.into());
+        }
+    
+        let pool_account = &mut ctx.accounts.pool_account;
+        pool_account.start_ico_ts = start_ico_ts;
+        pool_account.end_ico_ts = end_ico_ts;
+        pool_account.withdraw_native_ts = withdraw_native_ts;
+        
+        Ok(())
+    }
 }
+
 
 #[derive(Accounts)]
 pub struct InitializePool<'info> {
@@ -95,6 +116,16 @@ impl<'info> InitializePool<'info> {
     }
 }
 
+#[derive(Accounts)]
+pub struct ModifyIcoTime<'info> {
+    #[account(mut, has_one = distribution_authority)]
+    pub pool_account: Account<'info, PoolAccount>,
+    #[account(signer)]
+    pub distribution_authority: AccountInfo<'info>,
+    #[account(signer)]
+    pub payer: AccountInfo<'info>,
+}
+
 #[account]
 pub struct PoolAccount {
     pub redeemable_mint: Pubkey,
@@ -111,8 +142,8 @@ pub struct PoolAccount {
 
 #[error_code]
 pub enum ErrorCode {
-    #[msg("IDO must start in the future")]
-    IdoFuture,
+    #[msg("ICO must start in the future")]
+    IcoFuture,
     #[msg("ICO times are non-sequential")]
     SeqTimes,
     #[msg("Given nonce is invalid")]
@@ -127,7 +158,7 @@ pub enum ErrorCode {
 // ICO Starts in the Future
 fn future_start_time<'info>(ctx: &Context<InitializePool<'info>>, start_ico_ts: i64) -> Result<()> {
     if !(ctx.accounts.clock.unix_timestamp < start_ico_ts) {
-        return Err(ErrorCode::IdoFuture.into());
+        return Err(ErrorCode::IcoFuture.into());
     }
     Ok(())
 }
