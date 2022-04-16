@@ -242,6 +242,35 @@ describe("ico-platform", () => {
         assert.ok(userNativeAccount.amount.eq(redeemedNative));
     });
 
+    it("Exchanges second users Redeemable tokens for native", async () => {
+        secondUserNative = await createTokenAccount(
+            provider,
+            nativeMint,
+            provider.wallet.publicKey
+        );
+
+        await program.rpc.exchangeRedeemableForNative(secondDeposit, {
+            accounts: {
+                poolAccount: poolAccount.publicKey,
+                poolSigner,
+                redeemableMint,
+                poolNative,
+                userAuthority: provider.wallet.publicKey,
+                userNative: secondUserNative,
+                userRedeemable: secondUserRedeemable,
+                tokenProgram: TOKEN_PROGRAM_ID,
+                clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+            },
+        });
+
+        poolNativeAccount = await getTokenAccount(provider, poolNative);
+        assert.ok(poolNativeAccount.amount.eq(new anchor.BN(0)));
+        secondUserNativeAccount = await getTokenAccount(
+            provider,
+            secondUserNative
+        );
+    });
+
     it("Modify ico time", async () => {
         await program.rpc.modifyIcoTime(
             new anchor.BN(1),
