@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 declare_id!("4UJV9VxwoewYhw1qZKtPoVAdhd4tW8AaaDzpawuN9YuA");
 
-const ALLOWED_DEPLOYER: &str = "8DXSNpVJ5xHX7B49kCQVxMgQ2xPALEaZxN1H1sLFEebX";
+// const ALLOWED_DEPLOYER: &str = "8DXSNpVJ5xHX7B49kCQVxMgQ2xPALEaZxN1H1sLFEebX";
 
 #[program]
 pub mod ico_platform {
@@ -25,14 +25,14 @@ pub mod ico_platform {
 
         let pool_account = &mut ctx.accounts.pool_account;
 
-        if Pubkey::from_str(ALLOWED_DEPLOYER).unwrap() != *ctx.accounts.payer.to_account_info().key
-        {
-            return Err(ErrorCode::InvalidParam.into());
-        }
+        // if Pubkey::from_str(ALLOWED_DEPLOYER).unwrap() != *ctx.accounts.payer.to_account_info().key
+        // {
+        //     return Err(ErrorCode::InvalidParam.into());
+        // }
         
         pool_account.redeemable_mint = *ctx.accounts.redeemable_mint.to_account_info().key;
         pool_account.pool_native = *ctx.accounts.pool_native.to_account_info().key;
-        pool_account.native_mint = *ctx.accounts.pool_native.to_account_info().key;
+        pool_account.native_mint = ctx.accounts.pool_native.mint;
         pool_account.pool_usdc = *ctx.accounts.pool_usdc.to_account_info().key;
         pool_account.distribution_authority = *ctx.accounts.distribution_authority.key;
         pool_account.nonce = nonce;
@@ -67,10 +67,10 @@ pub mod ico_platform {
             return Err(ErrorCode::SeqTimes.into());
         }
 
-        if Pubkey::from_str(ALLOWED_DEPLOYER).unwrap() != *ctx.accounts.payer.to_account_info().key
-        {
-            return Err(ErrorCode::InvalidParam.into());
-        }
+        // if Pubkey::from_str(ALLOWED_DEPLOYER).unwrap() != *ctx.accounts.payer.to_account_info().key
+        // {
+        //     return Err(ErrorCode::InvalidParam.into());
+        // }
     
         let pool_account = &mut ctx.accounts.pool_account;
         pool_account.start_ico_ts = start_ico_ts;
@@ -179,7 +179,32 @@ pub mod ico_platform {
 
         Ok(())
     }
+
+    #[access_control(ico_over(&ctx.accounts.pool_account, &ctx.accounts.clock))]
+        pub fn withdraw_pool_usdc(ctx: Context<WithdrawPoolUsdc>, amount: u64) -> Result<()> {
+            // if Pubkey::from_str(ALLOWED_DEPLOYER).unwrap() != *ctx.accounts.payer.to_account_info().key
+            // {
+            //     return Err(ErrorCode::InvalidParam.into());
+            // }
+            
+            let seeds = &[
+                ctx.accounts.pool_account.native_mint.as_ref(),
+                &[ctx.accounts.pool_account.nonce],
+            ];
+            let signer = &[&seeds[..]];
+            let cpi_accounts = Transfer {
+                from: ctx.accounts.pool_usdc.to_account_info(),
+                to: ctx.accounts.creator_usdc.to_account_info(),
+                authority: ctx.accounts.pool_signer.to_account_info(),
+            };
+            let cpi_program = ctx.accounts.token_program.clone();
+            let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
+            token::transfer(cpi_ctx, amount)?;
+    
+            Ok(())
+        }
 }
+
 
 
 #[derive(Accounts)]
@@ -281,6 +306,25 @@ pub struct ExchangeRedeemableForNative<'info> {
     pub user_native: Account<'info, TokenAccount>,
     #[account(mut, constraint = user_redeemable.owner == *user_authority.key)]
     pub user_redeemable: Account<'info, TokenAccount>,
+    #[account(constraint = token_program.key == &token::ID)]
+    pub token_program: AccountInfo<'info>,
+    pub clock: Sysvar<'info, Clock>,
+}
+
+#[derive(Accounts)]
+pub struct WithdrawPoolUsdc<'info> {
+    #[account(has_one = pool_usdc, has_one = distribution_authority)]
+    pub pool_account: Account<'info, PoolAccount>,
+    #[account(seeds = [pool_account.native_mint.as_ref()], bump = pool_account.nonce)]
+    pub pool_signer: AccountInfo<'info>,
+    #[account(mut, constraint = pool_usdc.owner == *pool_signer.key)]
+    pub pool_usdc: Account<'info, TokenAccount>,
+    #[account(signer)]
+    pub distribution_authority: AccountInfo<'info>,
+    #[account(signer)]
+    pub payer: AccountInfo<'info>,
+    #[account(mut)]
+    pub creator_usdc: Account<'info, TokenAccount>,
     #[account(constraint = token_program.key == &token::ID)]
     pub token_program: AccountInfo<'info>,
     pub clock: Sysvar<'info, Clock>,
