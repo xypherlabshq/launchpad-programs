@@ -236,7 +236,7 @@ describe("ico-platform", () => {
         let redeemedNative = firstDeposit
             .mul(nativeIcoAmount)
             .div(totalPoolUsdc);
-        let remainingNative = NativeIcoAmount.sub(redeemedNative);
+        let remainingNative = nativeIcoAmount.sub(redeemedNative);
         assert.ok(poolNativeAccount.amount.eq(remainingNative));
         userNativeAccount = await getTokenAccount(provider, userNative);
         assert.ok(userNativeAccount.amount.eq(redeemedNative));
@@ -269,6 +269,27 @@ describe("ico-platform", () => {
             provider,
             secondUserNative
         );
+    });
+
+    it("Withdraws total USDC from pool account", async () => {
+        const acc = await getTokenAccount(provider, poolUsdc);
+        await program.rpc.withdrawPoolUsdc(new anchor.BN(acc.amount), {
+            accounts: {
+                poolAccount: poolAccount.publicKey,
+                poolSigner,
+                distributionAuthority: provider.wallet.publicKey,
+                creatorUsdc,
+                poolUsdc,
+                payer: provider.wallet.publicKey,
+                tokenProgram: TOKEN_PROGRAM_ID,
+                clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+            },
+        });
+
+        poolUsdcAccount = await getTokenAccount(provider, poolUsdc);
+        assert.ok(poolUsdcAccount.amount.eq(new anchor.BN(0)));
+        creatorUsdcAccount = await getTokenAccount(provider, creatorUsdc);
+        assert.ok(creatorUsdcAccount.amount.eq(totalPoolUsdc));
     });
 
     it("Modify ico time", async () => {
