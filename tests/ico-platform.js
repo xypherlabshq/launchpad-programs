@@ -161,6 +161,87 @@ describe("ico-platform", () => {
         assert.ok(userRedeemableAccount.amount.eq(firstDeposit));
     });
 
+    const secondDeposit = new anchor.BN(23);
+    let totalPoolUsdc = null;
+
+    it("Exchanges a second users USDC for redeemable tokens", async () => {
+        secondUserUsdc = await createTokenAccount(
+            provider,
+            usdcMint,
+            provider.wallet.publicKey
+        );
+        await mintToAccount(
+            provider,
+            usdcMint,
+            secondUserUsdc,
+            secondDeposit,
+            provider.wallet.publicKey
+        );
+        secondUserRedeemable = await createTokenAccount(
+            provider,
+            redeemableMint,
+            provider.wallet.publicKey
+        );
+
+        await program.rpc.exchangeUsdcForRedeemable(secondDeposit, {
+            accounts: {
+                poolAccount: poolAccount.publicKey,
+                poolSigner,
+                redeemableMint,
+                poolUsdc,
+                userAuthority: provider.wallet.publicKey,
+                userUsdc: secondUserUsdc,
+                userRedeemable: secondUserRedeemable,
+                tokenProgram: TOKEN_PROGRAM_ID,
+                clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+            },
+        });
+
+        totalPoolUsdc = firstDeposit.add(secondDeposit);
+        poolUsdcAccount = await getTokenAccount(provider, poolUsdc);
+        assert.ok(poolUsdcAccount.amount.eq(totalPoolUsdc));
+        secondUserRedeemableAccount = await getTokenAccount(
+            provider,
+            secondUserRedeemable
+        );
+        assert.ok(secondUserRedeemableAccount.amount.eq(secondDeposit));
+    });
+
+    it("Exchanges user Redeemable tokens for native", async () => {
+        if (Date.now() < withDrawTs.toNumber() * 1000) {
+            await sleep(withDrawTs.toNumber() * 1000 - Date.now() + 2000);
+        }
+
+        userNative = await createTokenAccount(
+            provider,
+            nativeMint,
+            provider.wallet.publicKey
+        );
+
+        await program.rpc.exchangeRedeemableForNative(firstDeposit, {
+            accounts: {
+                poolAccount: poolAccount.publicKey,
+                poolSigner,
+                redeemableMint,
+                poolNative,
+                userAuthority: provider.wallet.publicKey,
+                userNative,
+                userRedeemable,
+                tokenProgram: TOKEN_PROGRAM_ID,
+                clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+            },
+        });
+
+        poolNativeAccount = await getTokenAccount(provider, poolNative);
+        let redeemedNative = firstDeposit
+            .mul(nativeIcoAmount)
+            .div(totalPoolUsdc);
+        let remainingNative = NativeIcoAmount.sub(redeemedNative);
+        assert.ok(poolNativeAccount.amount.eq(remainingNative));
+        userNativeAccount = await getTokenAccount(provider, userNative);
+        assert.ok(userNativeAccount.amount.eq(redeemedNative));
+    });
+
     it("Modify ico time", async () => {
         await program.rpc.modifyIcoTime(
             new anchor.BN(1),
