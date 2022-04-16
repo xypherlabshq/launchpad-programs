@@ -47,7 +47,7 @@ pub mod ico_platform {
 
         Ok(())
     }
-    
+
     pub fn modify_ico_time(
         ctx: Context<ModifyIcoTime>,
         start_ico_ts: i64,
@@ -65,6 +65,49 @@ pub mod ico_platform {
         pool_account.end_ico_ts = end_ico_ts;
         pool_account.withdraw_native_ts = withdraw_native_ts;
         
+        Ok(())
+    }
+
+    #[access_control(unrestricted_phase(&ctx))]
+    pub fn exchange_usdc_for_redeemable(
+        ctx: Context<ExchangeUsdcForRedeemable>,
+        amount: u64,
+    ) -> Result<()> {
+        if amount == 0 {
+            return Err(ErrorCode::InvalidParam.into());
+        }
+        
+        if ctx.accounts.user_usdc.amount < amount {
+            return Err(ErrorCode::LowUsdc.into());
+        }
+
+        let cpi_accounts = Transfer {
+            from: ctx.accounts.user_usdc.to_account_info(),
+            to: ctx.accounts.pool_usdc.to_account_info(),
+            authority: ctx.accounts.user_authority.clone(),
+        };
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+        token::transfer(cpi_ctx, amount)?;
+
+        let seeds = &[
+            ctx.accounts.pool_account.native_mint.as_ref(),
+            &[ctx.accounts.pool_account.nonce],
+        ];
+
+        let signer = &[&seeds[..]];
+
+        let cpi_accounts = MintTo {
+            mint: ctx.accounts.redeemable_mint.to_account_info(),
+            to: ctx.accounts.user_redeemable.to_account_info(),
+            authority: ctx.accounts.pool_signer.clone(),
+        };
+
+        let cpi_program = ctx.accounts.token_program.clone();
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
+
+        token::mint_to(cpi_ctx, amount)?;
+
         Ok(())
     }
 }
@@ -126,6 +169,30 @@ pub struct ModifyIcoTime<'info> {
     pub payer: AccountInfo<'info>,
 }
 
+#[derive(Accounts)]
+pub struct ExchangeUsdcForRedeemable<'info> {
+    #[account(has_one = redeemable_mint, has_one = pool_usdc)]
+    pub pool_account: Account<'info, PoolAccount>,
+    #[account(seeds = [pool_account.native_mint.as_ref()], bump = pool_account.nonce)]
+    pool_signer: AccountInfo<'info>,
+    #[account(
+        mut,
+        constraint = redeemable_mint.mint_authority == COption::Some(*pool_signer.key)
+    )]
+    pub redeemable_mint: Account<'info, Mint>,
+    #[account(mut, constraint = pool_usdc.owner == *pool_signer.key)]
+    pub pool_usdc: Account<'info, TokenAccount>,
+    #[account(signer)]
+    pub user_authority: AccountInfo<'info>,
+    #[account(mut, constraint = user_usdc.owner == *user_authority.key)]
+    pub user_usdc: Account<'info, TokenAccount>,
+    #[account(mut, constraint = user_redeemable.owner == *user_authority.key)]
+    pub user_redeemable: Account<'info, TokenAccount>,
+    #[account(constraint = token_program.key == &token::ID)]
+    pub token_program: AccountInfo<'info>,
+    pub clock: Sysvar<'info, Clock>,
+}
+
 #[account]
 pub struct PoolAccount {
     pub redeemable_mint: Pubkey,
@@ -146,6 +213,16 @@ pub enum ErrorCode {
     IcoFuture,
     #[msg("ICO times are non-sequential")]
     SeqTimes,
+    #[msg("ICO has not started")]
+    StartIcoTime,
+    #[msg("Deposits period has ended")]
+    EndDepositsTime,
+    #[msg("ICO has ended")]
+    EndIcoTime,
+    #[msg("ICO has not finished yet")]
+    IcoNotOver,
+    #[msg("Insufficient USDC")]
+    LowUsdc,
     #[msg("Given nonce is invalid")]
     InvalidNonce,
     #[msg("Invalid param")]
@@ -159,6 +236,14 @@ pub enum ErrorCode {
 fn future_start_time<'info>(ctx: &Context<InitializePool<'info>>, start_ico_ts: i64) -> Result<()> {
     if !(ctx.accounts.clock.unix_timestamp < start_ico_ts) {
         return Err(ErrorCode::IcoFuture.into());
+    }
+    Ok(())
+}
+
+// Unrestricted Phase (Before ICO)
+fn unrestricted_phase<'info>(ctx: &Context<ExchangeUsdcForRedeemable<'info>>) -> Result<()> {
+    if !(ctx.accounts.pool_account.start_ico_ts < ctx.accounts.clock.unix_timestamp) {
+        return Err(ErrorCode::StartIcoTime.into());
     }
     Ok(())
 }
