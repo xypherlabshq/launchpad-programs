@@ -1,9 +1,11 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::program_option::COption;
 use anchor_spl::token::{self, Burn, Mint, MintTo, TokenAccount, Transfer};
-// use std::str::FromStr;
+use std::str::FromStr;
 
 declare_id!("4UJV9VxwoewYhw1qZKtPoVAdhd4tW8AaaDzpawuN9YuA");
+
+const ALLOWED_DEPLOYER: &str = "8DXSNpVJ5xHX7B49kCQVxMgQ2xPALEaZxN1H1sLFEebX";
 
 #[program]
 pub mod ico_platform {
@@ -22,6 +24,11 @@ pub mod ico_platform {
         }
 
         let pool_account = &mut ctx.accounts.pool_account;
+
+        if Pubkey::from_str(ALLOWED_DEPLOYER).unwrap() != *ctx.accounts.payer.to_account_info().key
+        {
+            return Err(ErrorCode::InvalidParam.into());
+        }
         
         pool_account.redeemable_mint = *ctx.accounts.redeemable_mint.to_account_info().key;
         pool_account.pool_native = *ctx.accounts.pool_native.to_account_info().key;
@@ -58,6 +65,11 @@ pub mod ico_platform {
             && end_ico_ts < withdraw_native_ts)
         {
             return Err(ErrorCode::SeqTimes.into());
+        }
+
+        if Pubkey::from_str(ALLOWED_DEPLOYER).unwrap() != *ctx.accounts.payer.to_account_info().key
+        {
+            return Err(ErrorCode::InvalidParam.into());
         }
     
         let pool_account = &mut ctx.accounts.pool_account;
@@ -107,6 +119,63 @@ pub mod ico_platform {
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
 
         token::mint_to(cpi_ctx, amount)?;
+
+        Ok(())
+    }
+
+    #[access_control(ico_over(&ctx.accounts.pool_account, &ctx.accounts.clock))]
+    pub fn exchange_redeemable_for_native(
+        ctx: Context<ExchangeRedeemableForNative>,
+        amount: u64,
+    ) -> Result<()> {
+        if amount == 0 {
+            return Err(ErrorCode::InvalidParam.into());
+        }
+
+        if ctx.accounts.user_redeemable.amount < amount {
+            return Err(ErrorCode::LowRedeemable.into())
+        }
+
+        // let real_pool_supply = ctx.accounts.pool_native.amount;
+        // let real_redeemable_supply = ctx.accounts.redeemable_mint.supply * u64::pow(10, 3);
+
+        // let token_price: f64 =
+        //     (real_redeemable_supply as f64 / real_pool_supply as f64) * f64::powf(10.0, 9.0);
+
+        let native_amount = (amount as u128)
+            .checked_mul(ctx.accounts.pool_native.amount as u128)
+            .unwrap()
+            .checked_div(ctx.accounts.redeemable_mint.supply as u128)
+            .unwrap();
+            
+        let cpi_accounts = Burn {
+            mint: ctx.accounts.redeemable_mint.to_account_info(),
+            to: ctx.accounts.user_redeemable.to_account_info(),
+            authority: ctx.accounts.user_authority.to_account_info(),
+        };
+
+        let cpi_program = ctx.accounts.token_program.clone();
+        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+
+        token::burn(cpi_ctx, amount)?;
+
+        let seeds = &[
+            ctx.accounts.pool_account.native_mint.as_ref(),
+            &[ctx.accounts.pool_account.nonce],
+        ];
+
+        let signer = &[&seeds[..]];
+
+        let cpi_accounts = Transfer {
+            from: ctx.accounts.pool_native.to_account_info(),
+            to: ctx.accounts.user_native.to_account_info(),
+            authority: ctx.accounts.pool_signer.to_account_info(),
+        };
+        let cpi_program = ctx.accounts.token_program.clone();
+
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
+
+        token::transfer(cpi_ctx, native_amount as u64)?;
 
         Ok(())
     }
@@ -193,6 +262,30 @@ pub struct ExchangeUsdcForRedeemable<'info> {
     pub clock: Sysvar<'info, Clock>,
 }
 
+#[derive(Accounts)]
+pub struct ExchangeRedeemableForNative<'info> {
+    #[account(has_one = redeemable_mint, has_one = pool_native)]
+    pub pool_account: Account<'info, PoolAccount>,
+    #[account(seeds = [pool_account.native_mint.as_ref()], bump = pool_account.nonce)]
+    pool_signer: AccountInfo<'info>,
+    #[account(
+        mut,
+        constraint = redeemable_mint.mint_authority == COption::Some(*pool_signer.key)
+    )]
+    pub redeemable_mint: Account<'info, Mint>,
+    #[account(mut, constraint = pool_native.owner == *pool_signer.key)]
+    pub pool_native: Account<'info, TokenAccount>,
+    #[account(signer)]
+    pub user_authority: AccountInfo<'info>,
+    #[account(mut, constraint = user_native.owner == *user_authority.key)]
+    pub user_native: Account<'info, TokenAccount>,
+    #[account(mut, constraint = user_redeemable.owner == *user_authority.key)]
+    pub user_redeemable: Account<'info, TokenAccount>,
+    #[account(constraint = token_program.key == &token::ID)]
+    pub token_program: AccountInfo<'info>,
+    pub clock: Sysvar<'info, Clock>,
+}
+
 #[account]
 pub struct PoolAccount {
     pub redeemable_mint: Pubkey,
@@ -223,10 +316,18 @@ pub enum ErrorCode {
     IcoNotOver,
     #[msg("Insufficient USDC")]
     LowUsdc,
+    #[msg("Insufficient redeemable tokens")]
+    LowRedeemable,
+    #[msg("USDC total and redeemable total don't match")]
+    UsdcNotEqRedeem,
     #[msg("Given nonce is invalid")]
     InvalidNonce,
     #[msg("Invalid param")]
     InvalidParam,
+    #[msg("Cannot withdraw USDC after depositing")]
+    UsdcWithdrawNotAllowed,
+    #[msg("Tokens still need to be redeemed")]
+    WithdrawTokensNotAllowed,
 }
 
 
@@ -247,6 +348,18 @@ fn unrestricted_phase<'info>(ctx: &Context<ExchangeUsdcForRedeemable<'info>>) ->
     }
     Ok(())
 }
+
+//ICO Over
+fn ico_over<'info>(
+    pool_account: &Account<'info, PoolAccount>,
+    clock: &Sysvar<'info, Clock>,
+) -> Result<()> {
+    if !(pool_account.withdraw_native_ts < clock.unix_timestamp) {
+        return Err(ErrorCode::IcoNotOver.into());
+    }
+    Ok(())
+}
+
 
 const DISCRIMATOR_LENGTH: usize = 8;
 const PUBLIC_KEY_LENGTH: usize = 32;
