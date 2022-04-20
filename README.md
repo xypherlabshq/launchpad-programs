@@ -1,3 +1,3 @@
-# ICO Platform Programs
+# Xypher Launchpad
 
-Solana Programs for an ICO Platform. Works with Anchor v0.23.0
+Solana Programs for Xypher Launchpad
