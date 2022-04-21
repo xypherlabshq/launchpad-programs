@@ -1,11 +1,8 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::program_option::COption;
 use anchor_spl::token::{self, Burn, Mint, MintTo, TokenAccount, Transfer};
-// use std::str::FromStr;
 
 declare_id!("4UJV9VxwoewYhw1qZKtPoVAdhd4tW8AaaDzpawuN9YuA");
-
-// const ALLOWED_DEPLOYER: &str = "8DXSNpVJ5xHX7B49kCQVxMgQ2xPALEaZxN1H1sLFEebX";
 
 #[program]
 pub mod ico_platform {
@@ -24,11 +21,6 @@ pub mod ico_platform {
         }
 
         let pool_account = &mut ctx.accounts.pool_account;
-
-        // if Pubkey::from_str(ALLOWED_DEPLOYER).unwrap() != *ctx.accounts.payer.to_account_info().key
-        // {
-        //     return Err(ErrorCode::InvalidParam.into());
-        // }
         
         pool_account.redeemable_mint = *ctx.accounts.redeemable_mint.to_account_info().key;
         pool_account.pool_native = *ctx.accounts.pool_native.to_account_info().key;
@@ -66,11 +58,6 @@ pub mod ico_platform {
         {
             return Err(ErrorCode::SeqTimes.into());
         }
-
-        // if Pubkey::from_str(ALLOWED_DEPLOYER).unwrap() != *ctx.accounts.payer.to_account_info().key
-        // {
-        //     return Err(ErrorCode::InvalidParam.into());
-        // }
     
         let pool_account = &mut ctx.accounts.pool_account;
         pool_account.start_ico_ts = start_ico_ts;
@@ -150,7 +137,7 @@ pub mod ico_platform {
             
         let cpi_accounts = Burn {
             mint: ctx.accounts.redeemable_mint.to_account_info(),
-            to: ctx.accounts.user_redeemable.to_account_info(),
+            from: ctx.accounts.user_redeemable.to_account_info(),
             authority: ctx.accounts.user_authority.to_account_info(),
         };
 
@@ -181,12 +168,7 @@ pub mod ico_platform {
     }
 
     #[access_control(ico_over(&ctx.accounts.pool_account, &ctx.accounts.clock))]
-        pub fn withdraw_pool_usdc(ctx: Context<WithdrawPoolUsdc>, amount: u64) -> Result<()> {
-            // if Pubkey::from_str(ALLOWED_DEPLOYER).unwrap() != *ctx.accounts.payer.to_account_info().key
-            // {
-            //     return Err(ErrorCode::InvalidParam.into());
-            // }
-            
+        pub fn withdraw_pool_usdc(ctx: Context<WithdrawPoolUsdc>, amount: u64) -> Result<()> {            
             let seeds = &[
                 ctx.accounts.pool_account.native_mint.as_ref(),
                 &[ctx.accounts.pool_account.nonce],
@@ -352,8 +334,6 @@ pub enum ErrorCode {
     SeqTimes,
     #[msg("ICO has not started")]
     StartIcoTime,
-    #[msg("Deposits period has ended")]
-    EndDepositsTime,
     #[msg("ICO has ended")]
     EndIcoTime,
     #[msg("ICO has not finished yet")]
