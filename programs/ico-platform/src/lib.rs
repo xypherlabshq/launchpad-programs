@@ -9,7 +9,14 @@ pub mod ico_platform {
     use super::*;
 
     #[access_control(InitializePool::accounts(&ctx, nonce) future_start_time(&ctx, start_ico_ts))]
-    pub fn initialize_pool(ctx: Context<InitializePool>, num_ico_tokens: u64, nonce: u8, start_ico_ts: i64, end_ico_ts: i64, withdraw_native_ts: i64) -> Result<()> {
+    pub fn initialize_pool(
+        ctx: Context<InitializePool>, 
+        num_ico_tokens: u64, 
+        nonce: u8, 
+        start_ico_ts: i64, 
+        end_ico_ts: i64, 
+        withdraw_native_ts: i64
+    ) -> Result<()> {
 
         if !(start_ico_ts < end_ico_ts
             && end_ico_ts <= withdraw_native_ts)
@@ -44,26 +51,6 @@ pub mod ico_platform {
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
         token::transfer(cpi_ctx, num_ico_tokens)?;
 
-        Ok(())
-    }
-
-    pub fn modify_ico_time(
-        ctx: Context<ModifyIcoTime>,
-        start_ico_ts: i64,
-        end_ico_ts: i64,
-        withdraw_native_ts: i64,
-    ) -> Result<()> {
-        if !(start_ico_ts < end_ico_ts
-            && end_ico_ts < withdraw_native_ts)
-        {
-            return Err(ErrorCode::SeqTimes.into());
-        }
-    
-        let pool_account = &mut ctx.accounts.pool_account;
-        pool_account.start_ico_ts = start_ico_ts;
-        pool_account.end_ico_ts = end_ico_ts;
-        pool_account.withdraw_native_ts = withdraw_native_ts;
-        
         Ok(())
     }
 
@@ -233,16 +220,6 @@ impl<'info> InitializePool<'info> {
         }
         Ok(())
     }
-}
-
-#[derive(Accounts)]
-pub struct ModifyIcoTime<'info> {
-    #[account(mut, has_one = distribution_authority)]
-    pub pool_account: Account<'info, PoolAccount>,
-    #[account(signer)]
-    pub distribution_authority: AccountInfo<'info>,
-    #[account(signer)]
-    pub payer: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]
