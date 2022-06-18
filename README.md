@@ -1,3 +1,3 @@
-# Xypher Launchpad
+# Launchpad Programs
 
-Solana Programs for Xypher Launchpad
+Solana Programs written for tutorial
