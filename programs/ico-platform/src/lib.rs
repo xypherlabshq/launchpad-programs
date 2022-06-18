@@ -180,6 +180,7 @@ pub mod ico_platform {
 pub struct InitializePool<'info> {
     #[account(init, payer = payer, space = PoolAccount::LEN)]
     pub pool_account: Box<Account<'info, PoolAccount>>,
+    /// CHECK: This is not dangerous
     #[account(mut)]
     pub pool_signer: AccountInfo<'info>,
     #[account(
@@ -195,6 +196,7 @@ pub struct InitializePool<'info> {
     pub pool_native: Box<Account<'info, TokenAccount>>,
     #[account(constraint = pool_usdc.owner == *pool_signer.key)]
     pub pool_usdc: Box<Account<'info, TokenAccount>>,
+    /// CHECK: This is not dangerous
     #[account(mut)]
     pub distribution_authority: AccountInfo<'info>,
     #[account(mut)]
@@ -202,6 +204,7 @@ pub struct InitializePool<'info> {
     #[account(mut)]
     pub creator_native: Box<Account<'info, TokenAccount>>,
     #[account(constraint = token_program.key == &token::ID)]
+    /// CHECK: This is not dangerous
     pub token_program: AccountInfo<'info>,
     pub rent: Sysvar<'info, Rent>,
     pub clock: Sysvar<'info, Clock>,
@@ -226,6 +229,7 @@ impl<'info> InitializePool<'info> {
 pub struct ExchangeUsdcForRedeemable<'info> {
     #[account(has_one = redeemable_mint, has_one = pool_usdc)]
     pub pool_account: Account<'info, PoolAccount>,
+    /// CHECK: This is not dangerous
     #[account(seeds = [pool_account.native_mint.as_ref()], bump = pool_account.nonce)]
     pool_signer: AccountInfo<'info>,
     #[account(
@@ -235,12 +239,14 @@ pub struct ExchangeUsdcForRedeemable<'info> {
     pub redeemable_mint: Account<'info, Mint>,
     #[account(mut, constraint = pool_usdc.owner == *pool_signer.key)]
     pub pool_usdc: Account<'info, TokenAccount>,
+    /// CHECK: This is not dangerous
     #[account(signer)]
     pub user_authority: AccountInfo<'info>,
     #[account(mut, constraint = user_usdc.owner == *user_authority.key)]
     pub user_usdc: Account<'info, TokenAccount>,
     #[account(mut, constraint = user_redeemable.owner == *user_authority.key)]
     pub user_redeemable: Account<'info, TokenAccount>,
+    /// CHECK: This is not dangerous
     #[account(constraint = token_program.key == &token::ID)]
     pub token_program: AccountInfo<'info>,
     pub clock: Sysvar<'info, Clock>,
@@ -250,6 +256,7 @@ pub struct ExchangeUsdcForRedeemable<'info> {
 pub struct ExchangeRedeemableForNative<'info> {
     #[account(has_one = redeemable_mint, has_one = pool_native)]
     pub pool_account: Account<'info, PoolAccount>,
+    /// CHECK: This is not dangerous
     #[account(seeds = [pool_account.native_mint.as_ref()], bump = pool_account.nonce)]
     pool_signer: AccountInfo<'info>,
     #[account(
@@ -259,12 +266,14 @@ pub struct ExchangeRedeemableForNative<'info> {
     pub redeemable_mint: Account<'info, Mint>,
     #[account(mut, constraint = pool_native.owner == *pool_signer.key)]
     pub pool_native: Account<'info, TokenAccount>,
+    /// CHECK: This is not dangerous
     #[account(signer)]
     pub user_authority: AccountInfo<'info>,
     #[account(mut, constraint = user_native.owner == *user_authority.key)]
     pub user_native: Account<'info, TokenAccount>,
     #[account(mut, constraint = user_redeemable.owner == *user_authority.key)]
     pub user_redeemable: Account<'info, TokenAccount>,
+    /// CHECK: This is not dangerous
     #[account(constraint = token_program.key == &token::ID)]
     pub token_program: AccountInfo<'info>,
     pub clock: Sysvar<'info, Clock>,
@@ -274,16 +283,20 @@ pub struct ExchangeRedeemableForNative<'info> {
 pub struct WithdrawPoolUsdc<'info> {
     #[account(has_one = pool_usdc, has_one = distribution_authority)]
     pub pool_account: Account<'info, PoolAccount>,
+    /// CHECK: This is not dangerous
     #[account(seeds = [pool_account.native_mint.as_ref()], bump = pool_account.nonce)]
     pub pool_signer: AccountInfo<'info>,
     #[account(mut, constraint = pool_usdc.owner == *pool_signer.key)]
     pub pool_usdc: Account<'info, TokenAccount>,
+    /// CHECK: This is not dangerous
     #[account(signer)]
     pub distribution_authority: AccountInfo<'info>,
+    /// CHECK: This is not dangerous
     #[account(signer)]
     pub payer: AccountInfo<'info>,
     #[account(mut)]
     pub creator_usdc: Account<'info, TokenAccount>,
+    /// CHECK: This is not dangerous
     #[account(constraint = token_program.key == &token::ID)]
     pub token_program: AccountInfo<'info>,
     pub clock: Sysvar<'info, Clock>,
