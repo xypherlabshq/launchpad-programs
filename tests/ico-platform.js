@@ -291,25 +291,4 @@ describe("ico-platform", () => {
         creatorUsdcAccount = await getTokenAccount(provider, creatorUsdc);
         assert.ok(creatorUsdcAccount.amount.eq(totalPoolUsdc));
     });
-
-    it("Modify ico time", async () => {
-        await program.rpc.modifyIcoTime(
-            new anchor.BN(1),
-            new anchor.BN(2),
-            new anchor.BN(3),
-            {
-                accounts: {
-                    poolAccount: poolAccount.publicKey,
-                    distributionAuthority: provider.wallet.publicKey,
-                    payer: provider.wallet.publicKey,
-                },
-            }
-        );
-        const pool = await program.account.poolAccount.fetch(
-            poolAccount.publicKey
-        );
-        assert.equal(pool.startIcoTs.toString(), "1");
-        assert.equal(pool.endIcoTs.toString(), "2");
-        assert.equal(pool.withdrawNativeTs.toString(), "3");
-    });
 });
